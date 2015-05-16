@@ -1,4 +1,0 @@
-KeyboardLoggerVisualStudioProject : 2860
-18:33:35		[CTRL]
-18:33:35		[ALT]
-18:33:35		[DELETE]
